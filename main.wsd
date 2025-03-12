@@ -1,1 +1,107 @@
+@startuml
+actor "Пользователь" as User
+participant "Клиент" as Client
+participant "Сервер API" as Server
+participant "Админ ресторана" as RestaurantAdmin
+participant "Платежная система" as Payment
+participant "Служба доставки" as Delivery
 
+== Управление рестораном ==
+RestaurantAdmin -> Server: POST /restaurants (Регистрация ресторана)
+Server --> RestaurantAdmin: 201 Created (ID ресторана)
+
+RestaurantAdmin -> Server: POST /menu (Добавить блюдо: "Пицца")
+Server --> RestaurantAdmin: 201 Created (ID блюда)
+
+RestaurantAdmin -> Server: PUT /menu/{id} (Обновить цену: 599 руб)
+Server --> RestaurantAdmin: 200 OK
+
+RestaurantAdmin -> Server: GET /orders (Запрос активных заказов)
+Server --> RestaurantAdmin: 200 OK (Список заказов)
+
+== Пользовательский сценарий ==
+User -> Client: Открывает приложение
+Client -> Server: GET /restaurants (Список ресторанов)
+Server --> Client: 200 OK (JSON с ресторанами)
+
+User -> Client: Выбирает ресторан "Итальянская кухня"
+Client -> Server: GET /restaurants/5/menu
+Server --> Client: 200 OK (Меню ресторана)
+
+User -> Client: Добавляет "Пиццу" в корзину
+Client -> Server: POST /cart (item_id=15, quantity=1)
+Server --> Client: 201 Created (Корзина обновлена)
+
+User -> Client: Применяет промокод "FOOD2023"
+Client -> Server: POST /cart/promo (promo_code="FOOD2023")
+Server --> Client: 200 OK (Скидка 15% применена)
+
+User -> Client: Просматривает корзину
+Client -> Server: GET /cart
+Server --> Client: 200 OK (Детали корзины)
+
+User -> Client: Добавляет комментарий "Без лука"
+Client -> Server: POST /order/notes (Комментарий)
+Server --> Client: 201 Created
+
+User -> Client: Выбирает способ оплаты "Карта"
+Client -> Server: PATCH /order/preferences (Метод оплаты)
+Server --> Client: 200 OK (Подтверждено)
+
+User -> Client: Оформляет заказ
+Client -> Server: POST /orders (Адрес: ул. Пушкина, 10)
+Server -> Payment: POST /charge (Сумма: 509 руб)
+Payment --> Server: 200 OK (Оплата успешна)
+Server -> RestaurantAdmin: Webhook /new_order (Заказ №42)
+RestaurantAdmin --> Server: 200 ACK
+Server -> Delivery: POST /assign (Адрес доставки)
+Delivery --> Server: 200 OK (Курьер ID: 77)
+Server --> Client: 201 Created (Заказ подтвержден)
+
+== Обновление статусов ==
+RestaurantAdmin -> Server: PATCH /orders/42 (status="Готово")
+Server -> Delivery: POST /dispatch (Курьер 77)
+Server --> Client: WebSocket /updates ("Заказ готов")
+Delivery --> Server: 200 OK (Статус: "В пути")
+Client -> User: Уведомление: "Заказ в пути!"
+
+Delivery -> Server: POST /delivered (Заказ №42)
+Server --> Client: WebSocket /updates ("Доставлен")
+Client -> User: Уведомление: "Заказ получен!"
+
+== Дополнительные взаимодействия ==
+User -> Client: Оставляет отзыв "Вкусно!"
+Client -> Server: POST /reviews (Текст и оценка 5/5)
+Server --> Client: 201 Created (Отзыв сохранен)
+
+User -> Client: Смотрит историю заказов
+Client -> Server: GET /orders/history
+Server --> Client: 200 OK (Список заказов)
+
+User -> Client: Изменяет профиль (новый email)
+Client -> Server: PUT /profile (Данные)
+Server --> Client: 200 OK (Профиль обновлен)
+
+User -> Client: Подписывается на рассылку
+Client -> Server: POST /newsletter (email="user@example.com")
+Server --> Client: 200 OK (Подписка оформлена)
+
+User -> Client: Смотрит акции и скидки
+Client -> Server: GET /promotions
+Server --> Client: 200 OK (Список акций)
+
+User -> Client: Добавляет ресторан в избранное
+Client -> Server: POST /favorites (restaurant_id=5)
+Server --> Client: 201 Created (Ресторан добавлен)
+
+User -> Client: Удаляет ресторан из избранного
+Client -> Server: DELETE /favorites/5
+Server --> Client: 200 OK (Ресторан удален)
+
+== Отмена заказа ==
+User -> Client: Отмена заказа №42
+Client -> Server: DELETE /orders/42
+Server -> Payment: POST /refund (509 руб)
+Payment --> Server: 200 OK
+Server --> Client: 200 OK ("Заказ отменен")
+@enduml
